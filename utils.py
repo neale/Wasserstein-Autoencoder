@@ -1,13 +1,15 @@
 import os
 import torch
+import PIL.Image as Image
 import numpy as np
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torch.autograd import Variable
 from torchvision.datasets import MNIST
 from torchvision.transforms import transforms
+from torchvision import datasets
 from torchvision.utils import save_image as save_img
 
 
@@ -28,6 +30,50 @@ def load_model(net, optim, path):
     optim.load_state_dict(ckpt['optimizer'])
     print ("==> loaded checkpoint '{}' (epoch {})".format(path, epoch))
     return net, optim, epoch
+
+
+def get_transform(args):
+    if args.dataset == 'celeba':
+        crop_size = 108
+        re_size = 64
+        offset_height = (218 - crop_size) // 2
+        offset_width = (178 - crop_size) // 2
+        crop = lambda x: x[:, offset_height:offset_height + crop_size,
+                offset_width:offset_width + crop_size]
+        preprocess = transforms.Compose(
+                [transforms.ToTensor(),
+                    transforms.Lambda(crop),
+                    transforms.ToPILImage(),
+                    transforms.Scale(size=(re_size, re_size), interpolation=Image.BICUBIC),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.5] * 3, std=[0.5] * 3)])
+    return preprocess
+
+
+def dataset_iterator(args):
+    transform = get_transform(args)
+    if args.dataset == 'mnist':
+        train_gen, dev_gen, test_gen = mnist.load(args.batch_size, args.batch_size)
+    elif args.dataset == 'cifar10':
+        data_dir = '/data0/images/cifar-10-batches-py/'
+        train_gen, dev_gen = cifar10.load(args.batch_size, data_dir)
+        test_gen = None
+    elif args.dataset == 'celeba':
+        data_dir = '/data0/images/celeba'
+        data = datasets.ImageFolder(data_dir, transform=transform)
+        train_loader = torch.utils.data.DataLoader(data,
+                batch_size=args.batch_size,
+                shuffle=True,
+                drop_last=True,
+                num_workers=4)
+        test_loader = torch.utils.data.DataLoader(data,
+                batch_size=args.batch_size,
+                shuffle=True,
+                drop_last=True,
+                num_workers=4)
+        return train_loader, test_loader
+
+    return (train_gen, dev_gen, test_gen)
 
 
 def load_data(args):
@@ -110,12 +156,15 @@ def gan_loss(args, latent, gen, netD):
     return (loss_adv, logits_e, logits_g), loss_match
 
 
-def save_image(args, netG, epoch):
+def save_image(netG, epoch, orthogonal=True):
     imgs = []
-    fixed_noise = torch.randn(100, args.dim)
+    if orthogonal:
+        fixed_noise = torch.ones(100, 8)
+    else:
+        fixed_noise = torch.randn(100, 8)
     noisev = Variable(fixed_noise).cuda()
-    samples = netG(noisev)[0]
-    samples = samples.view(args.batch_size, 28, 28)
+    samples = netG(noisev.view(100, 8, 1, 1))
+    samples = samples.view(100, 28, 28)
     for sample in samples:
         imgs.append(sample.view(1, 1, 28, 28))
     recons_image = torch.cat(imgs, dim=0)
