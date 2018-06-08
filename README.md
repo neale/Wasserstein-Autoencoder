@@ -1,15 +1,8 @@
 # Wasserstein Adversarial Autoencoder Pytorch
 
-This is a Pytorch implementation of an Adversarial Autoencoder (https://arxiv.org/abs/1511.05644) using Wasserstein loss (https://arxiv.org/abs/1701.07875) on the discriminator. The Wasserstein loss allows for more stable training than the Vanilla GAN loss proposed in the original paper.
+This is an implementation of the WAE proposed architecture in PyTorch. This idea of adding a discriminator to the latent space instead of discriminating directly on pixels has been floating around VAE and disentanglement research for the last year. This WAE paper has formalize the process in terms of optimal transport, whoich is nice
 
-The Encoder and Decoder uses an architecture similar to DCGAN (https://arxiv.org/abs/1511.06434)
 
-## Reconstructed images:
-![alt text](https://raw.githubusercontent.com/maitek/waae-pytorch/master/results/reconstruction.png)
+This implementation is of the WAE. 
 
-## Generated images:
-![alt text](https://raw.githubusercontent.com/maitek/waae-pytorch/master/results/generated.png)
-
-Special thanks to wiseodd for his educational generative model repository:
-
-https://github.com/wiseodd/generative-models
+WAE-MMD and WAE-GAN have not been added, but soon will be. 
