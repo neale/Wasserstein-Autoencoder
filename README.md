@@ -6,3 +6,12 @@ This is an implementation of the WAE proposed architecture in PyTorch. This idea
 This implementation is of the WAE. 
 
 WAE-MMD and WAE-GAN have not been added, but soon will be. 
+
+
+### MNIST
+
+![data](data/reconst_images/wae_gan_images_23.png)
+
+### CelebA
+
+![data](321.png)
