@@ -117,7 +117,7 @@ def sample_noise(args):
 def pretrain_loss(encoded, noise):
     mean_g = torch.mean(noise, dim=0, keepdim=True)
     mean_e = torch.mean(encoded, dim=0, keepdim=True)
-    mean_loss = F.mse_loss(mean_e, mean_g)
+    mean_loss = F.mse_loss(mean_e, mean_g, size_average=True)
 
     cov_g = torch.matmul((noise-mean_g).transpose(0, 1), noise-mean_g)
     cov_g /= 1000 - 1
@@ -127,17 +127,15 @@ def pretrain_loss(encoded, noise):
     return mean_loss + cov_loss
 
 
-def ae_loss(args, real, reconst):
+def ae_loss(args, real, sample):
     if args.loss == 'l2':
-        sqr = (real - reconst).pow(2)
-        loss = sqr.view(-1, sqr.size(-1)).sum(0)
+        loss = F.mse_loss(sample, real, size_average=False)
         loss = 0.2 * torch.sqrt(1e-08 + loss).mean()
     if args.loss == 'l2sq':
-        sqr = (real - reconst).pow(2)
-        loss = sqr.view(-1, sqr.size(-1)).sum(0)
-        loss = 0.05 * loss.mean()
+        loss = F.mse_loss(sample, real, size_average=True)
+        loss = 0.05 * loss
     if args.loss == 'l1':
-        abs = (real - reconst).abs()
+        abs = torch.abs(real - reconst)
         loss = sqr.view(-1, abs.size(-1)).sum(0)
         loss = 0.02 * loss.mean()
     return loss
@@ -156,14 +154,14 @@ def gan_loss(args, latent, gen, netD):
     return (loss_adv, logits_e, logits_g), loss_match
 
 
-def save_image(netG, epoch, orthogonal=True):
+def save_image(netG, epoch, iter, orthogonal=True):
     imgs = []
     if orthogonal:
         fixed_noise = torch.ones(100, 8)
     else:
         fixed_noise = torch.randn(100, 8)
     noisev = Variable(fixed_noise).cuda()
-    samples = netG(noisev.view(100, 8, 1, 1))
+    samples, samples_logits = netG(noisev.view(100, 8, 1, 1))
     samples = samples.view(100, 28, 28)
     for sample in samples:
         imgs.append(sample.view(1, 1, 28, 28))
@@ -172,6 +170,4 @@ def save_image(netG, epoch, orthogonal=True):
     if not os.path.isdir('./data/reconst_images'):
         os.makedirs('data/reconst_images')
     save_img(recons_image.data,
-        './data/reconst_images/wae_gan_images_%d.png' % (epoch+1), nrow=10)
-
-
+        './data/reconst_images/wae_{}_{}.png'.format(epoch+1, iter), nrow=10)

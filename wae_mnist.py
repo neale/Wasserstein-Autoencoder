@@ -36,15 +36,15 @@ def load_args():
 
     parser.add_argument('--batch-size', type=int, default=100, help='')
     parser.add_argument('--epochs', type=int, default=50, help='')
-    parser.add_argument('--dim', type=int, default=64, metavar='N', help='')
-    parser.add_argument('--epsilon', type=float, default=1e-15, metavar='N', help='')
-    parser.add_argument('--l', type=int, default=10, metavar='N', help='')
-    parser.add_argument('--lr', type=float, default=.0001, metavar='N', help='')
-    parser.add_argument('--e_dropout', type=bool, default=False, metavar='N', help='')
-    parser.add_argument('--resume', type=bool, default=False, metavar='N', help='')
-    parser.add_argument('--pretrain_epochs', type=int, default=200, metavar='N', help='')
-    parser.add_argument('--loss', type=str, default='l2sq', metavar='N', help='')
-    parser.add_argument('--dataset', type=str, default='celeba', metavar='N', help='')
+    parser.add_argument('--dim', type=int, default=64, help='')
+    parser.add_argument('--epsilon', type=float, default=1e-15, help='')
+    parser.add_argument('--l', type=int, default=10, help='')
+    parser.add_argument('--lr', type=float, default=.0001, help='')
+    parser.add_argument('--e_dropout', type=bool, default=False, help='')
+    parser.add_argument('--resume', type=bool, default=False, help='')
+    parser.add_argument('--pretrain_epochs', type=int, default=200, help='')
+    parser.add_argument('--loss', type=str, default='l2sq', help='')
+    parser.add_argument('--dataset', type=str, default='celeba', help='')
 
 
     args = parser.parse_args()
@@ -78,9 +78,9 @@ class Decoder(nn.Module):
         x = self.a4(self.bn4(self.deconv4(x)))
         x = self.deconv5(x)
         #print ('G out: ', x.shape)
-        x = self.sigmoid(x)
+        x_act = self.sigmoid(x)
 
-        return x
+        return (x_act, x)
 
 class Encoder(nn.Module):
     def __init__(self, is_training=True):
@@ -156,7 +156,8 @@ optimE = optim.Adam(netE.parameters(), lr=lr)
 optimG = optim.Adam(netG.parameters(), lr=lr)
 optimD = optim.Adam(netD.parameters(), lr=lr*0.1)
 
-if args.resume:
+print (args.resume)
+if args.resume is True:
     print ("\n==> Loading old weights if possible")
     netE, optimE, _ = utils.load_model(netE, optimE, "E_latest.pth")
     netG, optimG, _ = utils.load_model(netG, optimG, "G_latest.pth")
@@ -180,22 +181,23 @@ def pretrain_e():
                 print ("Finished Pretraining Encoder")
                 return
 
-pretrain_e()
-for it in range(100000):
+if not args.resume:
+    pretrain_e()
 
-    for batch_idx, batch_item in enumerate(data_loader):
+for epoch in range(args.epochs):
+    for batch_idx, batch_images in enumerate(data_loader):
         #X = sample_X(mb_size)
         """ Reconstruction phase """
-        X = Variable(batch_item[0]).cuda()
+        X = Variable(batch_images[0]).cuda()
         z_sample = netE(X)
-        X_sample = netG(z_sample)
-        recon_loss = F.mse_loss(X_sample, X)
+        X_sample, X_logits = netG(z_sample)
+        recon_loss = utils.ae_loss(args, X+args.epsilon, X_sample+args.epsilon)
+        # recon_loss = F.mse_loss(X_sample, X)
 
         recon_loss.backward()
         optimG.step()
         optimE.step()
         reset_grad()
-
         """ Regularization phase """
         # Discriminator
         for _ in range(5):
@@ -229,13 +231,13 @@ for it in range(100000):
         reset_grad()
 
         if batch_idx % 50 == 0:
-            print('Iter {}; D_loss: {:.4}; G_loss: {:.4}; recon_loss: {:.4}'
-                  .format(batch_idx, D_loss.data[0], G_loss.data[0], recon_loss.data[0]))
-            utils.save_model(netE, optimE, it, "E_latest.pth")
-            utils.save_model(netG, optimG, it, "G_latest.pth")
-            utils.save_model(netD, optimD, it, "D_latest.pth")
+            print('Epoch {}; iter {}; D_loss: {:.4}; G_loss: {:.4}; recon_loss: {:.4}'
+                  .format(epoch, batch_idx, D_loss.data[0], G_loss.data[0], recon_loss.data[0]))
+            utils.save_model(netE, optimE, epoch, "E_latest.pth")
+            utils.save_model(netG, optimG, epoch, "G_latest.pth")
+            utils.save_model(netD, optimD, epoch, "D_latest.pth")
 
         # Print and plot every now and then
         if batch_idx % 100 == 0:
-            utils.save_image(netG, it, orthogonal=False)
+            utils.save_image(netG, epoch, batch_idx, orthogonal=False)
        
