@@ -9,8 +9,7 @@ WAE-MMD and WAE-GAN have not been added, but soon will be.
 
 
 ### MNIST
-
-![data](results/wae_wae_200.png)
+![data](results/wae_200_200.png)
 
 ### CelebA
 
