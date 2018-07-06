@@ -135,23 +135,36 @@ def ae_loss(args, real, sample):
         loss = F.mse_loss(sample, real, size_average=True)
         loss = 0.05 * loss
     if args.loss == 'l1':
-        abs = torch.abs(real - reconst)
+        abs = torch.abs(sample - real)
         loss = sqr.view(-1, abs.size(-1)).sum(0)
         loss = 0.02 * loss.mean()
     return loss
 
 
-def gan_loss(args, latent, gen, netD):
+def gan_loss2(args, sample, encoded, netD):
+    logits_e = netD(encoded)
+    loss = args.l * (torch.log(logits_e)).mean()
+    return loss
+
+
+def gan_loss(args, sample, encoded, netD):
     loss = nn.BCEWithLogitsLoss()
-    logits_e = netD(latent)
-    logits_g = netD(gen)
+    logits_e = netD(encoded)
+    logits_g = netD(sample)
 
     loss_e = loss(logits_e, torch.zeros_like(logits_e))
     loss_g = loss(logits_g, torch.ones_like(logits_g))
     loss_e_trick = loss(logits_e, torch.ones_like(logits_e))
-    loss_adv = args.l * (loss_e + loss_g)
+    loss_adversary = args.l * (loss_e + loss_g)
+    # Non saturating loss trick
     loss_match = loss_e_trick
-    return (loss_adv, logits_e, logits_g), loss_match
+    return loss_match, (loss_adversary, logits_g, logits_e)
+
+
+def update_lambda(args, loss_match, loss_rec):
+    new_lambda = 0.5 * args.l + 0.5 * loss_rec / loss_match
+    args.l = new_lambda
+    return args
 
 
 def save_image(netG, epoch, iter, orthogonal=True):
